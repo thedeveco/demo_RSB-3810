@@ -5,6 +5,17 @@
 </head>
 <body>
 
+<button id="0" disabled>0<button>
+<button id="1" disabled>1<button>
+<button id="2" disabled>2<button>
+<button id="3" disabled>3<button>
+<button id="4" disabled>4<button>
+<button id="5" disabled>5<button>
+<button id="6" disabled>6<button>
+<button id="7" disabled>7<button>
+<button id="8" disabled>8<button>
+<button id="9" disabled>9<button>
+
 <canvas id="canvas" width="300" height="200" style="border:1px solid #d3d3d3;">
 Your browser does not support the HTML canvas tag.</canvas>
 
@@ -44,22 +55,42 @@ Your browser does not support the HTML canvas tag.</canvas>
 
 	const ctx = canvas.getContext("2d");
 	let drag = false, shift = false;
-	const images = new Array()
-	let sel = {
-		img: new Image(),
-		x: 0,
-		y: 0,
-		w: 0,
-		h: 0,
+	const images = new Array(10)
+	let i
+	let sel = null
+	for (i = 0; i < images.length; i++) {
+		let img = {
+			img: new Image(),
+			x: 0,
+			y: 0,
+			w: 0,
+			h: 0,
+			loaded: false,
+			button: document.getElementById(`${i}`),
+		}
+		img.img.src = `/${i}.png`;
+		img.button.onclick = function(e) {
+			for (let j = 0; j < images.length; j++) {
+				if (!images[j] || !images[j].loaded) {
+					continue
+				}
+				images[j].button.disabled = false;
+			}
+			sel = img
+			img.button.disabled = true
+		}
+		img.img.onload = function() {
+			img.w = Math.min(img.img.width,  canvas.width)
+			img.h = Math.min(img.img.height, canvas.height)
+			img.button.disabled = false
+			img.loaded = true
+			ctx.drawImage(img.img, img.x, img.y, img.w, img.h);
+		};
+		images[i] = img
 	}
-	sel.img.src = "back.jpg"; // Replace with your image path
-	images.push(sel)
+	sel = images[0]
 
-	console.log(sel.img)
-
-	ctx.drawImage(sel.img, sel.x, sel.y, sel.w, sel.h);
-	console.log(sel.x)
-
+	/*
 	canvas.ondragover = function(e) {
 		e.preventDefault()
 	};
@@ -95,6 +126,7 @@ Your browser does not support the HTML canvas tag.</canvas>
 			r.readAsDataURL(file);
 		}
 	};
+	*/
 
 	canvas.addEventListener('mousedown', (e) => {
 		if ((shift = e.shiftKey)) {
@@ -115,11 +147,37 @@ Your browser does not support the HTML canvas tag.</canvas>
 		
 		ctx.clearRect(0, 0, canvas.width, canvas.height);
 		for (let s of images) {
+			if (!s.loaded) {
+				continue
+			}
 			ctx.drawImage(s.img, s.x, s.y, s.w, s.h);
 		}
 	});
 
 	canvas.addEventListener('mouseup', () => {
+		let i = images.indexOf(sel)
+		fetch("/set", {
+			body: `${i} overlay-width ${sel.w}
+`,
+			method: "POST",
+		})
+		fetch("/set", {
+			body: `${i} overlay-height ${sel.h}
+`,
+			method: "POST",
+		})
+
+		fetch("/set", {
+			body: `${i} offset-x ${sel.x}
+`,
+			method: "POST",
+		})
+
+		fetch("/set", {
+			body: `${i} offset-y ${sel.y}
+`,
+			method: "POST",
+		})
 		drag = false;
 		shift = false;
 	});
@@ -128,12 +186,6 @@ Your browser does not support the HTML canvas tag.</canvas>
 		drag = false;
 		shift = false;
 	});
-
-	sel.img.onload = function() {
-		sel.w = Math.min(sel.img.width,  canvas.width)
-		sel.h = Math.min(sel.img.height, canvas.height)
-		ctx.drawImage(sel.img, sel.x, sel.y, sel.w, sel.h);
-	};
 
 </script>
 
