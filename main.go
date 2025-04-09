@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"fmt"
 	"io"
+	"os"
 )
 
 func main() {
@@ -22,7 +23,7 @@ func main() {
 	fs := http.FileServer(http.Dir("."))
 	http.Handle("/", fs)
 	http.Handle("/set", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.Copy(writer, r.Body)
+		io.Copy(io.MultiWriter(writer, os.Stderr), r.Body)
 	}))
 
 	log.Println("Server listening on port 8080")
