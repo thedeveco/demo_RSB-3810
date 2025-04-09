@@ -1,18 +1,35 @@
-#include <gst/gst.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <stdio.h>
 
+#include <gst/gst.h>
+
+#define LENGTH(x)  ((int)(sizeof (x) / sizeof *(x)))
+//#define MIN(a, b)  ((a) > (b) ? (b) : (a))
+//#define MAX(a, b)  ((a) < (b) ? (b) : (a))
+
+
 int main(int argc, char *argv[]) {
-	// Initialize GStreamer
+
+	int i, n;
+	char buf[1024], *s, *attr;
+
+	int busfd;
+
+	GstElement *pipeline, *src, *sink, *dec, *f, *filters[10] = {}, *enc;
+	GError *err;
+	gchar *info;
+	GstStateChangeReturn r;
+	GstBus *bus;
+	GstMessage *m;
+	fd_set rfds;
+
+
 	gst_init(&argc, &argv);
 
-	GstElement *pipeline, *src, *sink, *dec, *filter, *enc;
-	GstCaps *filtercaps;
-	GstPad *pad;
 
-	/* init GStreamer */
-	// "v4l2src device=/dev/video0 ! jpegdec ! gdkpixbufoverlay offset-x=100 offset-y=100 overlay-width=500 location=back.jpg ! xvimagesink";
+	// "v4l2src device=/dev/video0 ! jpegdec ! gdkpixbufoverlay offset-x=100 offset-y=100 overlay-width=500 location=elmer.jpg ! xvimagesink";
 
-	/* build */
 	pipeline = gst_pipeline_new("my-pipeline");
 	src = gst_element_factory_make("v4l2src", "src");
 	if (src == NULL)
@@ -20,11 +37,17 @@ int main(int argc, char *argv[]) {
 
 	dec = gst_element_factory_make("jpegdec", "dec");
 
-	filter = gst_element_factory_make("gdkpixbufoverlay", "filter");
-	if (filter == NULL)
-		g_error("Could not create 'videoconvert' element");
-
-	g_assert(filter != NULL); /* should always exist */
+	for (i = 0; i < LENGTH(filters); i++) {
+		sprintf(buf, "filter-%d", i);
+		f = gst_element_factory_make("gdkpixbufoverlay", buf);
+		fprintf(stderr, "%d\n", i);
+		if (f == NULL) {
+			g_error("Could not create 'gdkpixbufoverlay' element");
+			break;
+		}
+		filters[i] = f;
+	}
+	fprintf(stderr, "made %d %d filters\n", LENGTH(filters), i);
 
 	enc = gst_element_factory_make("x264enc", "enc");
 	if (enc == NULL) {
@@ -36,92 +59,155 @@ int main(int argc, char *argv[]) {
 		g_error("Could not create neither 'hlssink2'");
 	}
 
+	gst_bin_add_many(
+		GST_BIN(pipeline),
+		src,
+		dec,
+		filters[0],
+		filters[1],
+		filters[2],
+		filters[3],
+		filters[4],
+		filters[5],
+		filters[6],
+		filters[7],
+		filters[8],
+		filters[9],
+		enc,
+		sink,
+		NULL
+	);
 
-	gst_bin_add_many(GST_BIN(pipeline), src, dec, filter, enc, sink, NULL);
-	gst_element_link_many(              src, dec, filter, enc, sink, NULL);
+	gst_element_link_many(
+		src,
+		dec,
+		filters[0],
+		filters[1],
+		filters[2],
+		filters[3],
+		filters[4],
+		filters[5],
+		filters[6],
+		filters[7],
+		filters[8],
+		filters[9],
+		enc,
+		sink,
+		NULL
+	);
 
-	g_object_set(G_OBJECT(filter), "offset-x", 100, NULL);
-	g_object_set(G_OBJECT(filter), "offset-y", 100, NULL);
-	g_object_set(G_OBJECT(filter), "overlay-width", 400, NULL);
-	g_object_set(G_OBJECT(filter), "overlay-height", 400, NULL);
-	g_object_set(G_OBJECT(filter), "location", "back.jpg", NULL);
+	for (i = 0; i < LENGTH(filters); i++) {
+		f = filters[i];
+		fprintf(stderr, "%d\n", i);
+		if (f == NULL) {
+			fprintf(stderr, "breaking\n");
+			break;
+		}
+		g_object_set(G_OBJECT(f), "offset-x", 100, NULL);
+		g_object_set(G_OBJECT(f), "offset-y", 100, NULL);
+		g_object_set(G_OBJECT(f), "overlay-width", 400, NULL);
+		g_object_set(G_OBJECT(f), "overlay-height", 400, NULL);
+		if (i == 0) {
+			g_object_set(G_OBJECT(f), "location", "elmer.jpg", NULL);
+		}
+	}
 
 	g_object_set(G_OBJECT(sink), "max-files", 3, NULL);
 	g_object_set(G_OBJECT(sink), "playlist-length", 3, NULL);
 	g_object_set(G_OBJECT(sink), "playlist-root", ".", NULL);
 	g_object_set(G_OBJECT(sink), "target-duration", 1, NULL);
-	/*
-	filtercaps = gst_caps_new_simple("video/x-raw",
-							 "format", G_TYPE_STRING, "RGB16",
-							 "width", G_TYPE_INT, 384,
-							 "height", G_TYPE_INT, 288,
-							 "framerate", GST_TYPE_FRACTION, 25, 1,
-							 NULL);
-	gst_caps_unref (filtercaps);
-	*/
 
-	/*
-	pad = gst_element_get_static_pad (src, "src");
-	gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER,
-			(GstPadProbeCallback) cb_have_data, NULL, NULL);
-	gst_object_unref (pad);
-	*/
+	
 
-	fprintf(stderr, "%d\n", pipeline);
-
-	// Set the pipeline to the PLAYING state
-	GstStateChangeReturn ret = gst_element_set_state(pipeline, GST_STATE_PLAYING);
-
-	// Check if the pipeline state change was successful
-	if (ret != GST_STATE_CHANGE_SUCCESS) {
-		g_printerr("Failed to set pipeline state: %s\n", ret == GST_STATE_CHANGE_FAILURE ? "FAILURE" : "ERROR");
-		fprintf(stderr, "ehh: %d %s\n", ret, gst_error_get_message(GST_RESOURCE_ERROR, ret));
-		//gst_object_unref(pipeline);
-		//return -1;
+	switch ((r = gst_element_set_state(pipeline, GST_STATE_PLAYING))) {
+	case GST_STATE_CHANGE_ASYNC:
+		fprintf(stderr, "buffering...\n");
+		break;
+	default:
+		fprintf(stderr, "FAILURE\n");
+		return 1;
 	}
 
-	// Run the pipeline (wait for a signal)
-	GstBus *bus = gst_element_get_bus(pipeline);
-	GstMessage *message;
-	GstStateChangeReturn state_change_ret;
+	bus = gst_element_get_bus(pipeline);
+	gst_bus_get_pollfd(bus, (GPollFD*)&busfd);
+	fprintf(stderr, "busfd: %d\n", busfd);
 
-	int i;
-	for (i = 0;; i++) {
-		message = gst_bus_timed_pop_filtered(bus, GST_CLOCK_TIME_NONE, GST_MESSAGE_ERROR | GST_MESSAGE_EOS | GST_MESSAGE_ASYNC_DONE);
-		if (message) {
-			switch (GST_MESSAGE_TYPE(message)) {
-				case GST_MESSAGE_ERROR:
-					g_printerr("Error: %s\n", gst_error_get_message(GST_CORE_ERROR, GST_MESSAGE_TYPE(message)));
-					break;
-				case GST_MESSAGE_EOS:
-					g_printerr("End of Stream\n");
-					break;
-				case GST_MESSAGE_ASYNC_DONE:
-					g_printerr("Async Done\n");
-					break;
-				default:
-					g_printerr("Unknown message type\n");
-					break;
-			}
-			gst_message_unref(message);
+
+	for (;;){
+
+		FD_ZERO(&rfds);
+		FD_SET(0,     &rfds);
+		FD_SET(busfd, &rfds);
+
+		if (select(FD_SETSIZE, &rfds, NULL, NULL, NULL) == -1) {
+			if (errno == EINTR)
+				fprintf(stderr, "interrupted\n");
 		}
-		//fprintf(stderr, "%d\n", i);
-		if (i % 1000 == 0) {
-			if ((i / 1000) % 2) { 
-				g_object_set(G_OBJECT(filter), "offset-y", 200, NULL);
+
+		if (FD_ISSET(0, &rfds)) {
+			if ((n = read(0, &buf[0], sizeof(buf)-1)) == -1) {
+				fprintf(stderr, "stdin read failed %d\n", errno);
+				return 1;
+			} else if (n == 0) {
+				fprintf(stderr, "read eof\n");
+				break;
+			}
+			buf[n] = '\0';
+			s = strtok(&buf[0], " ");
+			if (s == NULL) {
+				fprintf(stderr, "parse failure\n");
+				continue;
+			}
+			i = atoi(s);
+			
+			s = strtok(NULL, " ");
+			if (s == NULL) {
+				continue;
+			}
+			if (strcmp(s, "location") != 0) {
+				// ok
+			} else if ((s = strtok(NULL, " ")) == NULL) {
+				// ok
+				fprintf(stderr, "failed to parse location\n");
+				continue;
 			} else {
-				g_object_set(G_OBJECT(filter), "offset-y", 100, NULL);
+				g_object_set(G_OBJECT(filters[i]), "location", s, NULL);
+				gst_element_set_state(pipeline, GST_STATE_NULL);
+				fprintf(stderr, "set %d location to %s\n", i, s);
+				gst_element_set_state(pipeline, GST_STATE_PLAYING);
+				continue;
 			}
+
+			attr = s;
+			s = strtok(NULL, " ");
+			if (s == NULL) {
+				fprintf(stderr, "failed to parse\n");
+				continue;
+			}
+			n = atoi(s);
+			fprintf(stderr, "atoi %d %s\n", n, attr);
+			if (n <= 0) {
+				continue;
+			}
+			g_object_set(G_OBJECT(filters[i]), attr, n, NULL);
+			fprintf(stderr, "set %d %s to %d\n", i, attr, n);
+			fprintf(stderr, "read %.*s\n", n, &buf[0]);
+		}
+
+		if (FD_ISSET(busfd, &rfds)) {
+			m = gst_bus_pop(bus);
+			if (GST_MESSAGE_TYPE(m) == GST_MESSAGE_ERROR) {
+				gst_message_parse_error(m, &err, &info);
+				fprintf(stderr, "error: %s - %s - %s\n", GST_MESSAGE_TYPE_NAME(m), err->message, info);
+			} else {
+				fprintf(stderr, "%s\n", GST_MESSAGE_TYPE_NAME(m));
+			}
+			gst_message_unref(m);
 		}
 	}
 
-	// Set the pipeline to NULL state
 	gst_element_set_state(pipeline, GST_STATE_NULL);
-
-	// Free the pipeline
 	gst_object_unref(pipeline);
-
-	// Shut down GStreamer
 	gst_deinit();
 
 	return 0;
