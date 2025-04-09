@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Canvas Image Example</title>
+</head>
+<body>
+
+<canvas id="canvas" width="300" height="200" style="border:1px solid #d3d3d3;">
+Your browser does not support the HTML canvas tag.</canvas>
+
+<script>
+	function distanceToBoundingBox(point, box) {
+		const { x, y } = point;
+		const { x_min, y_min, x_max, y_max } = box;
+
+		const dx = Math.max(x_min - x, 0, x - x_max);
+		const dy = Math.max(y_min - y, 0, y - y_max);
+
+		return Math.sqrt(dx * dx + dy * dy);
+	}
+
+	function findClosestBoundingBox(point, boxes) {
+		let closestBox = null;
+		let minDistance = Infinity;
+
+		for (const box of boxes) {
+			const distance = distanceToBoundingBox(point, box);
+			if (distance < minDistance) {
+				minDistance = distance;
+				closestBox = box;
+			}
+		}
+
+		return closestBox;
+	}
+
+	const canvas = document.getElementById("canvas");
+	canvas.width = window.innerWidth;
+	canvas.height = window.innerHeight;
+	window.addEventListener('resize', function(e) {
+		canvas.width = window.innerWidth;
+		canvas.height = window.innerHeight;
+	})
+
+	const ctx = canvas.getContext("2d");
+	let drag = false, shift = false;
+	const images = new Array()
+	let sel = {
+		img: new Image(),
+		x: 0,
+		y: 0,
+		w: 0,
+		h: 0,
+	}
+	sel.img.src = "back.jpg"; // Replace with your image path
+	images.push(sel)
+
+	console.log(sel.img)
+
+	ctx.drawImage(sel.img, sel.x, sel.y, sel.w, sel.h);
+	console.log(sel.x)
+
+	canvas.ondragover = function(e) {
+		e.preventDefault()
+	};
+
+	canvas.ondrop = function(e) {
+		e.preventDefault()
+		if (!e.dataTransfer) {
+			return
+		}
+		const files = e.dataTransfer.files
+		let r, blob
+		for (file of files) {
+			console.log(file)
+			r = new FileReader();
+			r.onload = function (e) {
+				sel = {
+					img: new Image(),
+					x: 0,
+					y: 0,
+				}
+				sel.img.src = e.target.result
+
+				sel.img.onload = function() {
+					console.log(sel.img)
+					console.log(sel.img.width, sel.img.height)
+					sel.w = sel.img.width
+					sel.h = sel.img.height
+				};
+				images.push(sel)
+				ctx.drawImage(sel.img, sel.x, sel.y, sel.w, sel.h);
+				console.log("drawing", sel)
+			};
+			r.readAsDataURL(file);
+		}
+	};
+
+	canvas.addEventListener('mousedown', (e) => {
+		if ((shift = e.shiftKey)) {
+			shift = true
+		} else {
+			drag = true
+		}
+	});
+
+	canvas.addEventListener('mousemove', (e) => {
+		if (e.shiftKey) {
+			sel.w += e.movementX * 2
+			sel.h += e.movementY * 2
+		} else if (drag) {
+			sel.x += e.movementX
+			sel.y += e.movementY
+		}
+		
+		ctx.clearRect(0, 0, canvas.width, canvas.height);
+		for (let s of images) {
+			ctx.drawImage(s.img, s.x, s.y, s.w, s.h);
+		}
+	});
+
+	canvas.addEventListener('mouseup', () => {
+		drag = false;
+		shift = false;
+	});
+
+	canvas.addEventListener('mouseout', () => {
+		drag = false;
+		shift = false;
+	});
+
+	sel.img.onload = function() {
+		sel.w = Math.min(sel.img.width,  canvas.width)
+		sel.h = Math.min(sel.img.height, canvas.height)
+		ctx.drawImage(sel.img, sel.x, sel.y, sel.w, sel.h);
+	};
+
+</script>
+
+</body>
+</html>
