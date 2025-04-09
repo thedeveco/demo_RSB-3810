@@ -1,8 +1,10 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 #include <gst/gst.h>
+#include <gdk-pixbuf/gdk-pixbuf.h>
 
 #define LENGTH(x)  ((int)(sizeof (x) / sizeof *(x)))
 //#define MIN(a, b)  ((a) > (b) ? (b) : (a))
@@ -12,7 +14,7 @@
 int main(int argc, char *argv[]) {
 
 	int i, n;
-	char buf[1024], *s, *attr;
+	char buf[1024*32], *s, *attr;
 
 	int busfd;
 
@@ -24,6 +26,8 @@ int main(int argc, char *argv[]) {
 	GstMessage *m;
 	fd_set rfds;
 
+	FILE *file;
+	GdkPixbuf *pixbufs[10];
 
 	gst_init(&argc, &argv);
 
@@ -107,9 +111,15 @@ int main(int argc, char *argv[]) {
 		g_object_set(G_OBJECT(f), "offset-y", 100, NULL);
 		g_object_set(G_OBJECT(f), "overlay-width", 400, NULL);
 		g_object_set(G_OBJECT(f), "overlay-height", 400, NULL);
-		if (i == 0) {
-			g_object_set(G_OBJECT(f), "location", "elmer.jpg", NULL);
+		fprintf(stderr, "%d\n", pixbufs[i]);
+		sprintf(buf, "%d.png", i);
+		err = NULL;
+		GdkPixbuf *pb = gdk_pixbuf_new_from_file(buf, &err);
+		if (!pb || err != NULL) {
+			break;
 		}
+		pixbufs[i] = pb;
+		g_object_set(G_OBJECT(f), "pixbuf", pixbufs[i], NULL);
 	}
 
 	g_object_set(G_OBJECT(sink), "max-files", 3, NULL);
@@ -166,15 +176,24 @@ int main(int argc, char *argv[]) {
 			}
 			if (strcmp(s, "location") != 0) {
 				// ok
-			} else if ((s = strtok(NULL, " ")) == NULL) {
+			} else if ((s = strtok(NULL, " \n")) == NULL) {
 				// ok
 				fprintf(stderr, "failed to parse location\n");
 				continue;
 			} else {
-				g_object_set(G_OBJECT(filters[i]), "location", s, NULL);
-				gst_element_set_state(pipeline, GST_STATE_NULL);
 				fprintf(stderr, "set %d location to %s\n", i, s);
+				/*
+				GdkPixbuf *pb = gdk_pixbuf_new_from_file(s, &err);
+				gdk_pixbuf_fill(pixbufs[i], 0xffffffff);
+				if (err != NULL && err->message != NULL) {
+					fprintf(stderr, "%d %d %s\n", pixbufs[i], pb, err->message);
+				}
+				gdk_pixbuf_copy_area(pb, 0, 0, gdk_pixbuf_get_width(pb), gdk_pixbuf_get_height(pb), pixbufs[i], 0, 0);
+				gst_element_set_state(pipeline, GST_STATE_PAUSED);
+				g_object_set(G_OBJECT(filters[i]), "pixbuf", pixbufs[i], NULL);
 				gst_element_set_state(pipeline, GST_STATE_PLAYING);
+
+				*/
 				continue;
 			}
 
@@ -200,7 +219,7 @@ int main(int argc, char *argv[]) {
 				gst_message_parse_error(m, &err, &info);
 				fprintf(stderr, "error: %s - %s - %s\n", GST_MESSAGE_TYPE_NAME(m), err->message, info);
 			} else {
-				fprintf(stderr, "%s\n", GST_MESSAGE_TYPE_NAME(m));
+				//fprintf(stderr, "%s\n", GST_MESSAGE_TYPE_NAME(m));
 			}
 			gst_message_unref(m);
 		}
