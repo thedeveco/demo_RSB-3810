@@ -5,7 +5,7 @@ int main(int argc, char *argv[]) {
 	// Initialize GStreamer
 	gst_init(&argc, &argv);
 
-	GstElement *pipeline, *src, *sink, *dec, *filter;
+	GstElement *pipeline, *src, *sink, *dec, *filter, *enc;
 	GstCaps *filtercaps;
 	GstPad *pad;
 
@@ -14,7 +14,7 @@ int main(int argc, char *argv[]) {
 
 	/* build */
 	pipeline = gst_pipeline_new("my-pipeline");
-	src = gst_element_factory_make("v4l2src", "device=/dev/video0");
+	src = gst_element_factory_make("v4l2src", "src");
 	if (src == NULL)
 		g_error("Could not create 'videotestsrc' element");
 
@@ -26,18 +26,30 @@ int main(int argc, char *argv[]) {
 
 	g_assert(filter != NULL); /* should always exist */
 
-	sink = gst_element_factory_make("xvimagesink", "sink");
-	if (sink == NULL) {
-		sink = gst_element_factory_make("ximagesink", "sink");
-		if (sink == NULL)
-			g_error("Could not create neither 'xvimagesink' nor 'ximagesink' element");
+	enc = gst_element_factory_make("x264enc", "enc");
+	if (enc == NULL) {
+		g_error("Could not create neither '265enc'");
 	}
 
-	gst_bin_add_many(GST_BIN(pipeline), src, dec, filter, sink, NULL);
-	gst_element_link_many(src, dec, filter, sink, NULL);
-	g_object_set (G_OBJECT(filter), "offset-x", 100, NULL);
-	g_object_set (G_OBJECT(filter), "offset-y", 100, NULL);
-	g_object_set (G_OBJECT(filter), "location", "back.jpg", NULL);
+	sink = gst_element_factory_make("hlssink2", "sink");
+	if (sink == NULL) {
+		g_error("Could not create neither 'hlssink2'");
+	}
+
+
+	gst_bin_add_many(GST_BIN(pipeline), src, dec, filter, enc, sink, NULL);
+	gst_element_link_many(              src, dec, filter, enc, sink, NULL);
+
+	g_object_set(G_OBJECT(filter), "offset-x", 100, NULL);
+	g_object_set(G_OBJECT(filter), "offset-y", 100, NULL);
+	g_object_set(G_OBJECT(filter), "overlay-width", 400, NULL);
+	g_object_set(G_OBJECT(filter), "overlay-height", 400, NULL);
+	g_object_set(G_OBJECT(filter), "location", "back.jpg", NULL);
+
+	g_object_set(G_OBJECT(sink), "max-files", 3, NULL);
+	g_object_set(G_OBJECT(sink), "playlist-length", 3, NULL);
+	g_object_set(G_OBJECT(sink), "playlist-root", ".", NULL);
+	g_object_set(G_OBJECT(sink), "target-duration", 1, NULL);
 	/*
 	filtercaps = gst_caps_new_simple("video/x-raw",
 							 "format", G_TYPE_STRING, "RGB16",
@@ -63,7 +75,7 @@ int main(int argc, char *argv[]) {
 	// Check if the pipeline state change was successful
 	if (ret != GST_STATE_CHANGE_SUCCESS) {
 		g_printerr("Failed to set pipeline state: %s\n", ret == GST_STATE_CHANGE_FAILURE ? "FAILURE" : "ERROR");
-		fprintf(stderr, "%d\n", gst_error_get_message(0, ret));
+		fprintf(stderr, "ehh: %d %s\n", ret, gst_error_get_message(GST_RESOURCE_ERROR, ret));
 		//gst_object_unref(pipeline);
 		//return -1;
 	}
@@ -75,11 +87,11 @@ int main(int argc, char *argv[]) {
 
 	int i;
 	for (i = 0;; i++) {
-		message = gst_bus_timed_pop_filtered(bus, /*GST_CLOCK_TIME_NONE*/ 1000000, GST_MESSAGE_ERROR | GST_MESSAGE_EOS | GST_MESSAGE_ASYNC_DONE);
+		message = gst_bus_timed_pop_filtered(bus, GST_CLOCK_TIME_NONE, GST_MESSAGE_ERROR | GST_MESSAGE_EOS | GST_MESSAGE_ASYNC_DONE);
 		if (message) {
 			switch (GST_MESSAGE_TYPE(message)) {
 				case GST_MESSAGE_ERROR:
-					g_printerr("Error: %s\n", gst_error_get_message(GstCoreError, GST_MESSAGE_TYPE(message)));
+					g_printerr("Error: %s\n", gst_error_get_message(GST_CORE_ERROR, GST_MESSAGE_TYPE(message)));
 					break;
 				case GST_MESSAGE_EOS:
 					g_printerr("End of Stream\n");
@@ -93,7 +105,7 @@ int main(int argc, char *argv[]) {
 			}
 			gst_message_unref(message);
 		}
-		fprintf(stderr, "%d\n", i);
+		//fprintf(stderr, "%d\n", i);
 		if (i % 1000 == 0) {
 			if ((i / 1000) % 2) { 
 				g_object_set(G_OBJECT(filter), "offset-y", 200, NULL);
