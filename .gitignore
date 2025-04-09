@@ -1,5 +1,5 @@
 *.m3u8
 *.ts
 *.jpg
-a.out
-
+stream
+main
