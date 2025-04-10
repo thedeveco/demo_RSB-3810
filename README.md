@@ -186,3 +186,25 @@ g_object_set(G_OBJECT(overlay), "offset-x", 50, "offset-y", 100, NULL);
 
 However, we're blocked on `gst_bus_timed_pop`, waiting for warning &
 error messages from gstreamer.
+
+Ideally, I'd like to be able to write to standard in, like:
+
+```
+offset-x 50
+offset-y 100
+```
+
+There are a number of ways we can handle input from stdin & messages from gst:
+- `pthreads(7)`
+- `select(2)`
+
+Though a different loop on a different thread may each for-loop more simple,
+a `select` call should do just fine here.
+
+If you're new to C, `select` is essentially `Promise.race` in Javascript,
+where Promises are file-handles(we call them "file descriptors", "fd").
+
+File-handles "resolve" when there's data to read, and the same file-handle
+can resolve many times.
+
+`gst` gives you a file-descriptor which you can give to `select`
