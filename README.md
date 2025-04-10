@@ -16,7 +16,6 @@ make && ./main
 
 ## Usage
 
-- view the HLS stream with `mpv`: `mpv http://<server IP>/playlist.m3u8 `
-- visit the server at port 80 from a web-browser
-- click & drag the images around - click the 1-9 buttons up top to change the selection
+- visit the server at port 8080 from a web-browser
+- click & drag the images around - click the images on the top to change the selection
 - shift click & drag to resize individual selections

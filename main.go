@@ -23,7 +23,11 @@ func main() {
 	fs := http.FileServer(http.Dir("."))
 	http.Handle("/", fs)
 	http.Handle("/set", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.Copy(io.MultiWriter(writer, os.Stderr), r.Body)
+		buf, err := io.ReadAll(r.Body)
+		if err != nil {
+			return
+		}
+		fmt.Fprintf(io.MultiWriter(os.Stderr, writer), "%s\n", string(buf))
 	}))
 
 	log.Println("Server listening on port 8080")

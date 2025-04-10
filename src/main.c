@@ -7,9 +7,6 @@
 #include <gdk-pixbuf/gdk-pixbuf.h>
 
 #define LENGTH(x)  ((int)(sizeof (x) / sizeof *(x)))
-//#define MIN(a, b)  ((a) > (b) ? (b) : (a))
-//#define MAX(a, b)  ((a) < (b) ? (b) : (a))
-
 
 int main(int argc, char *argv[]) {
 
@@ -18,7 +15,7 @@ int main(int argc, char *argv[]) {
 
 	int busfd;
 
-	GstElement *pipeline, *src, *sink, *dec, *f, *filters[10] = {}, *enc;
+	GstElement *pipeline, *src, *sink, *dec, *f, *filters[5] = {}, *enc;
 	GError *err;
 	gchar *info;
 	GstStateChangeReturn r;
@@ -31,8 +28,8 @@ int main(int argc, char *argv[]) {
 
 	gst_init(&argc, &argv);
 
-
-	// "v4l2src device=/dev/video0 ! jpegdec ! gdkpixbufoverlay offset-x=100 offset-y=100 overlay-width=500 location=elmer.jpg ! xvimagesink";
+	// equivalent:
+	// "v4l2src device=/dev/video0 ! jpegdec ! gdkpixbufoverlay location=0.jpg ! xvimagesink";
 
 	pipeline = gst_pipeline_new("my-pipeline");
 	src = gst_element_factory_make("v4l2src", "src");
@@ -51,14 +48,10 @@ int main(int argc, char *argv[]) {
 		}
 		filters[i] = f;
 	}
+
 	fprintf(stderr, "made %d %d filters\n", LENGTH(filters), i);
 
-	enc = gst_element_factory_make("x264enc", "enc");
-	if (enc == NULL) {
-		g_error("Could not create neither '265enc'");
-	}
-
-	sink = gst_element_factory_make("hlssink2", "sink");
+	sink = gst_element_factory_make("ximagesink", "sink");
 	if (sink == NULL) {
 		g_error("Could not create neither 'hlssink2'");
 	}
@@ -72,12 +65,6 @@ int main(int argc, char *argv[]) {
 		filters[2],
 		filters[3],
 		filters[4],
-		filters[5],
-		filters[6],
-		filters[7],
-		filters[8],
-		filters[9],
-		enc,
 		sink,
 		NULL
 	);
@@ -90,12 +77,6 @@ int main(int argc, char *argv[]) {
 		filters[2],
 		filters[3],
 		filters[4],
-		filters[5],
-		filters[6],
-		filters[7],
-		filters[8],
-		filters[9],
-		enc,
 		sink,
 		NULL
 	);
@@ -122,12 +103,7 @@ int main(int argc, char *argv[]) {
 		g_object_set(G_OBJECT(f), "pixbuf", pixbufs[i], NULL);
 	}
 
-	g_object_set(G_OBJECT(sink), "max-files", 3, NULL);
-	g_object_set(G_OBJECT(sink), "playlist-length", 3, NULL);
-	g_object_set(G_OBJECT(sink), "playlist-root", ".", NULL);
-	g_object_set(G_OBJECT(sink), "target-duration", 1, NULL);
-
-	
+	g_object_set(G_OBJECT(src), "device", "/dev/video0", NULL);
 
 	switch ((r = gst_element_set_state(pipeline, GST_STATE_PLAYING))) {
 	case GST_STATE_CHANGE_ASYNC:
@@ -162,6 +138,10 @@ int main(int argc, char *argv[]) {
 				fprintf(stderr, "read eof\n");
 				break;
 			}
+
+			// command interpretter
+			// to change image 0's x offset:
+			// 0 offset-x 50
 			buf[n] = '\0';
 			s = strtok(&buf[0], " ");
 			if (s == NULL) {
@@ -182,18 +162,6 @@ int main(int argc, char *argv[]) {
 				continue;
 			} else {
 				fprintf(stderr, "set %d location to %s\n", i, s);
-				/*
-				GdkPixbuf *pb = gdk_pixbuf_new_from_file(s, &err);
-				gdk_pixbuf_fill(pixbufs[i], 0xffffffff);
-				if (err != NULL && err->message != NULL) {
-					fprintf(stderr, "%d %d %s\n", pixbufs[i], pb, err->message);
-				}
-				gdk_pixbuf_copy_area(pb, 0, 0, gdk_pixbuf_get_width(pb), gdk_pixbuf_get_height(pb), pixbufs[i], 0, 0);
-				gst_element_set_state(pipeline, GST_STATE_PAUSED);
-				g_object_set(G_OBJECT(filters[i]), "pixbuf", pixbufs[i], NULL);
-				gst_element_set_state(pipeline, GST_STATE_PLAYING);
-
-				*/
 				continue;
 			}
 

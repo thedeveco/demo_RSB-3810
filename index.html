@@ -1,20 +1,21 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Canvas Image Example</title>
+<title>MediaTek</title>
+<style>
+img {
+	width: 50px;
+	height: 50px;
+}
+</style>
 </head>
 <body>
 
-<button id="0" disabled>0<button>
-<button id="1" disabled>1<button>
-<button id="2" disabled>2<button>
-<button id="3" disabled>3<button>
-<button id="4" disabled>4<button>
-<button id="5" disabled>5<button>
-<button id="6" disabled>6<button>
-<button id="7" disabled>7<button>
-<button id="8" disabled>8<button>
-<button id="9" disabled>9<button>
+<button id="0" disabled><img src="0.png"></img></button>
+<button id="1" disabled><img src="1.png"></img></button>
+<button id="2" disabled><img src="2.png"></img></button>
+<button id="3" disabled><img src="3.png"></img></button>
+<button id="4" disabled><img src="4.png"></img></button>
 
 <canvas id="canvas" width="300" height="200" style="border:1px solid #d3d3d3;">
 Your browser does not support the HTML canvas tag.</canvas>
@@ -55,7 +56,7 @@ Your browser does not support the HTML canvas tag.</canvas>
 
 	const ctx = canvas.getContext("2d");
 	let drag = false, shift = false;
-	const images = new Array(10)
+	const images = new Array(5)
 	let i
 	let sel = null
 	for (i = 0; i < images.length; i++) {
@@ -152,30 +153,45 @@ Your browser does not support the HTML canvas tag.</canvas>
 			}
 			ctx.drawImage(s.img, s.x, s.y, s.w, s.h);
 		}
+		let i = images.indexOf(sel)
+		fetch("/set", {
+			body: `${i} overlay-width ${sel.w}`,
+			method: "POST",
+		})
+		fetch("/set", {
+			body: `${i} overlay-height ${sel.h}`,
+			method: "POST",
+		})
+
+		fetch("/set", {
+			body: `${i} offset-x ${sel.x}`,
+			method: "POST",
+		})
+
+		fetch("/set", {
+			body: `${i} offset-y ${sel.y}`,
+			method: "POST",
+		})
 	});
 
 	canvas.addEventListener('mouseup', () => {
 		let i = images.indexOf(sel)
 		fetch("/set", {
-			body: `${i} overlay-width ${sel.w}
-`,
+			body: `${i} overlay-width ${sel.w}`,
 			method: "POST",
 		})
 		fetch("/set", {
-			body: `${i} overlay-height ${sel.h}
-`,
-			method: "POST",
-		})
-
-		fetch("/set", {
-			body: `${i} offset-x ${sel.x}
-`,
+			body: `${i} overlay-height ${sel.h}`,
 			method: "POST",
 		})
 
 		fetch("/set", {
-			body: `${i} offset-y ${sel.y}
-`,
+			body: `${i} offset-x ${sel.x}`,
+			method: "POST",
+		})
+
+		fetch("/set", {
+			body: `${i} offset-y ${sel.y}`,
 			method: "POST",
 		})
 		drag = false;
