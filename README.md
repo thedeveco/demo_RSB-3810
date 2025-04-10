@@ -84,3 +84,105 @@ gst-launch-1.0 v4l2src device=/dev/video0 ! jpegdec ! gdkpixbufoverlay location=
 ![](images/apple.jpg)
 
 That's fun & all but I want to be able to move it around in realtime.
+Let's take this pipeline down lower, and, for simplicity's sake, skip the H.264 encoding & networking.
+
+Here's how to do that in under 80 lines of C:
+
+```c
+#include <stdio.h>
+#include <gst/gst.h>
+
+int main(int argc, char *argv[]) {
+	GstElement *pipeline, *src, *dec, *overlay, *sink;
+	GError *err;
+	gchar *info;
+	GstBus *bus;
+	GstMessage *m;
+
+	gst_init(&argc, &argv);
+
+	pipeline = gst_pipeline_new("pipeline");
+
+	src      = gst_element_factory_make("v4l2src",          "src");
+	dec      = gst_element_factory_make("jpegdec",          "dec");
+	overlay  = gst_element_factory_make("gdkpixbufoverlay", "overlay");
+	sink     = gst_element_factory_make("xvimagesink",      "sink");
+
+	if (pipeline == NULL || src == NULL || dec == NULL || overlay == NULL || sink == NULL) {
+		fprintf(stderr, "failed to initialize elemenets\n");
+		return 1;
+	}
+
+	gst_bin_add_many(
+		GST_BIN(pipeline),
+		src,
+		dec,
+		overlay,
+		sink,
+		NULL
+	);
+
+	gst_element_link_many(
+		src,
+		dec,
+		overlay,
+		sink,
+		NULL
+	);
+
+	g_object_set(G_OBJECT(src), "device", (argc > 1) ? argv[1] : "/dev/video0", NULL);
+
+	g_object_set(G_OBJECT(overlay),
+		"location",       "apple.png",
+		"offset-x",       10,
+		"offset-y",       10,
+		"overlay-width",  1000,
+		"overlay-height", 1000,
+		NULL
+	);
+
+	gst_element_set_state(pipeline, GST_STATE_PLAYING);
+
+	bus = gst_element_get_bus(pipeline);
+
+	for (;;) {
+		m = gst_bus_timed_pop(bus, GST_CLOCK_TIME_NONE);
+		if (GST_MESSAGE_TYPE(m) == GST_MESSAGE_ERROR) {
+			gst_message_parse_error(m, &err, &info);
+			fprintf(stderr, "error: %s - %s - %s\n", GST_MESSAGE_TYPE_NAME(m), err->message, info);
+			break;
+		}
+		fprintf(stderr, "%s\n", GST_MESSAGE_TYPE_NAME(m));
+		gst_message_unref(m);
+	}
+
+	gst_element_set_state(pipeline, GST_STATE_NULL);
+	gst_deinit();
+
+	return 0;
+}
+```
+
+Here's how to compile it:
+
+```sh
+cc main.c $(pkg-config --cflags --libs gstreamer-1.0)
+```
+
+![](images/webcam.jpg)
+
+I want to be able to move the apple around in real time.
+We can do that with `g_object_set` like this:
+
+```
+g_object_set(G_OBJECT(overlay), "offset-x", 50, NULL);
+```
+
+or like this:
+
+```
+g_object_set(G_OBJECT(overlay), "offset-x", 50, "offset-y", 100, NULL);
+```
+
+However, we're blocked on `gst_bus_timed_pop`, waiting for warning &
+error messages from gstreamer.
