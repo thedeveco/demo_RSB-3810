@@ -1,4 +1,4 @@
-I got this tiny MediaTek RSB-3810 board which has some interesting
+I got this tiny Advantek RSB-3810 board which has some interesting
 hardware accelerated video manipulation features.
 
 I plugged in the power & ethernet & the ethernet light came on so I did
@@ -80,7 +80,7 @@ Reason: Error sending message: Message too long
 We have a couple options here:
 
 - raise the client & host's NIC's MTU sizes, as well as the UDP RX/TX packet buffer sizes
-- cut the bitrate in half
+- lower the bitrate
 
 I chose the latter:
 
@@ -198,7 +198,7 @@ g_object_set(G_OBJECT(overlay), "offset-x", 50, NULL);
 However, we're blocked on `gst_bus_timed_pop`, waiting for warning &
 error messages from gstreamer.
 
-Ideally, I'd like to be able to write to standard in, like this:
+Ideally, I'd like to be able to write to standard input, like this:
 
 ```
 offset-x 50
@@ -208,16 +208,16 @@ offset-y 100
 There are a number of ways we can handle input from stdin & messages
 from gst. For example, `pthreads(7)` or `select(2)`.
 
-Though a different loop on a different thread may each for-loop more simple,
-a `select` call should do just fine here.
+Though a different loop on a different thread may simplify the individual loops,
+I think a `select` call will do just fine here.
 
 If you're new to C, `select` is essentially `Promise.race` in Javascript,
-where Promises are file-handles(we call them "file descriptors", "fd").
+where Promises are "file descriptors".
 
-File-handles "resolve" when there's data to read, and the same file-handle
-can resolve many times.
+File descriptors "resolve" when there's data to read, and a single file
+descriptor resolve many times.
 
-`gst_bus_get_pollfd` gives us a file-descriptor which we can select against.
+`gst_bus_get_pollfd` gives us a file descriptor which we give to `select`.
 
 We'll start by including the `select` header & some others for file-descriptor IO:
 
@@ -227,7 +227,7 @@ We'll start by including the `select` header & some others for file-descriptor I
 #include <sys/select.h>
 ```
 
-Now our main-loop looks like this:
+And use `select`(and its helper-functions: `FD_ZERO`, `FD_SET`, `FD_ISSET`) in the main-loop like this:
 
 ```c
 	int n, gfd;
@@ -281,7 +281,7 @@ fprintf(stderr, "read: %.*s\n", n, &buf[0]);
 ![](images/select.jpg)
 
 
-Now all we need to do is parse & set:
+Now all we need to do is parse what's read from standard-in & give it to the overlay element:
 
 ```c
 if ((n = read(0, &buf[0], sizeof(buf)-1)) <= 0) {
@@ -301,3 +301,13 @@ g_object_set(G_OBJECT(overlay), &key[0], n, NULL);
 Mission accomplished.
 
 ![](images/mission-accomplished.jpg)
+
+We can take these principles & get pretty wacky with it - for example, with a web canvas front-end,
+resizing & moving the overlays:
+
+![](images/ui.gif)
+
+---
+
+We've only scratched the surface of what's possible.
+Next time, we'll dive into HDMI capture on the Advantek RSB-3810.
