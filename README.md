@@ -207,4 +207,65 @@ where Promises are file-handles(we call them "file descriptors", "fd").
 File-handles "resolve" when there's data to read, and the same file-handle
 can resolve many times.
 
-`gst` gives you a file-descriptor which you can give to `select`
+`gst_bus_get_pollfd` gives us a file-descriptor which we can select against.
+
+We'll start by including the `select` header & some others for file-descriptor IO:
+
+```c
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/select.h>
+```
+
+Now our main-loop looks like this:
+
+```c
+	int n, gfd;
+	fd_set fds;
+	char buf[1024];
+
+	gst_bus_get_pollfd(bus, (GPollFD*)&gfd);
+
+	for (;;){
+		FD_ZERO(&fds);
+		FD_SET(0,   &fds);
+		FD_SET(gfd, &fds);
+
+		if (select(gfd+1, &fds, NULL, NULL, NULL) == -1) {
+			if (errno == EINTR) {
+				fprintf(stderr, "interrupted\n");
+			} else {
+				break;
+			}
+		}
+
+		if (FD_ISSET(0, &fds)) {
+			if ((n = read(0, &buf[0], sizeof(buf)-1)) <= 0) {
+				break;
+			}
+			fprintf(stderr, "read: %.*s\n", n, &buf[0]);
+		}
+
+		if (FD_ISSET(gfd, &fds)) {
+			m = gst_bus_pop(bus);
+			if (GST_MESSAGE_TYPE(m) == GST_MESSAGE_ERROR) {
+				gst_message_parse_error(m, &err, &info);
+				fprintf(stderr, "error: %s - %s - %s\n", GST_MESSAGE_TYPE_NAME(m), err->message, info);
+			} else {
+				fprintf(stderr, "%s\n", GST_MESSAGE_TYPE_NAME(m));
+			}
+			gst_message_unref(m);
+		}
+	}
+```
+
+Note, we're echoing the gstreamer messages as well as stdin:
+
+```c
+		if ((n = read(0, &buf[0], sizeof(buf)-1)) <= 0) {
+			break;
+		}
+		fprintf(stderr, "read: %.*s\n", n, &buf[0]);
+```
+
+![](images/select.jpg)
