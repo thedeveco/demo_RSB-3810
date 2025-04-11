@@ -1,5 +1,5 @@
 I got this tiny MediaTek RSB-3810 board which has some interesting
-hardware accelerated video features.
+hardware accelerated video manipulation features.
 
 I plugged in the power & ethernet & the ethernet light came on so I did
 an arp-scan. My network was cluttered with a bunch of junk & I couldn't
@@ -10,8 +10,8 @@ These are the NICs my laptop has:
 
 ![](images/nics.jpg)
 
-The board is plugged into enp0s25. This was the script that I was running
-for the "home router" configuration:
+The board is plugged into enp0s25. This is the script I'm running for the
+"home router" configuration(you'll want to install `isc-dhcp-server` & `iptables` for this):
 
 ```sh
 # assign our ethernet port 10.20.30.1
@@ -43,8 +43,6 @@ dhcpd enp0s25 -cf /tmp/dhcpd.conf -d
 In this case, I saw that the board was asigned `10.20.30.2`.
 I was able to log in over SSH - the username & password were both `ubuntu`.
 
-![](images/mission-accomplished.jpg)
-
 ![](images/neofetch.jpg)
 
 
@@ -63,7 +61,11 @@ gst-launch-1.0 v4l2src device=/dev/video5 ! jpegdec ! x264enc ! udpsink host=10.
 looks about right - let's add an image on top:
 
 ```
-gst-launch-1.0 v4l2src device=/dev/video0 ! jpegdec ! gdkpixbufoverlay location=0.png overlay-width=1000 overlay-height=1000 ! x264enc ! udpsink host=10.20.30.1 port=2000
+gst-launch-1.0 v4l2src device=/dev/video0 ! \
+	jpegdec ! \
+	gdkpixbufoverlay location=apple.png overlay-width=1000 overlay-height=1000 ! \
+	x264enc ! \
+	udpsink host=10.20.30.1 port=2000
 ```
 
 When I ran that, nothing came out on the other end & gstreamer wrote:
@@ -75,16 +77,25 @@ Additional debug info:
 Reason: Error sending message: Message too long
 ```
 
-For simplicity's sake, I cut the bitrate in half:
+We have a couple options here:
+
+- raise the client & host's NIC's MTU sizes, as well as the UDP RX/TX packet buffer sizes
+- cut the bitrate in half
+
+I chose the latter:
 
 ```
-gst-launch-1.0 v4l2src device=/dev/video0 ! jpegdec ! gdkpixbufoverlay location=0.png overlay-width=1000 overlay-height=1000 ! x264enc bitrate=1024 ! udpsink host=10.20.30.1 port=2000
+gst-launch-1.0 v4l2src device=/dev/video0 !
+	jpegdec !
+	gdkpixbufoverlay location=0.png overlay-width=1000 overlay-height=1000 !
+	x264enc bitrate=1024 !
+	udpsink host=10.20.30.1 port=2000
 ```
 
 ![](images/apple.jpg)
 
-That's fun & all but I want to be able to move it around in realtime.
-Let's take this pipeline down lower, and, for simplicity's sake, skip the H.264 encoding & networking.
+Let's take this pipeline down lower, and, for simplicity's sake, skip the
+H.264 encoding & networking, and just get it running on my laptop first.
 
 Here's how to do that in under 80 lines of C:
 
@@ -169,6 +180,12 @@ Here's how to compile it:
 cc main.c $(pkg-config --cflags --libs gstreamer-1.0)
 ```
 
+If that doesn't work, make sure you have the following installed:
+
+```
+libgstreamer1.0-dev pkg-config gcc
+```
+
 ![](images/webcam.jpg)
 
 I want to be able to move the apple around in real time.
@@ -178,16 +195,10 @@ We can do that with `g_object_set` like this:
 g_object_set(G_OBJECT(overlay), "offset-x", 50, NULL);
 ```
 
-or like this:
-
-```c
-g_object_set(G_OBJECT(overlay), "offset-x", 50, "offset-y", 100, NULL);
-```
-
 However, we're blocked on `gst_bus_timed_pop`, waiting for warning &
 error messages from gstreamer.
 
-Ideally, I'd like to be able to write to standard in, like:
+Ideally, I'd like to be able to write to standard in, like this:
 
 ```
 offset-x 50
