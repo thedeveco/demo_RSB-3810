@@ -194,9 +194,8 @@ offset-x 50
 offset-y 100
 ```
 
-There are a number of ways we can handle input from stdin & messages from gst:
-- `pthreads(7)`
-- `select(2)`
+There are a number of ways we can handle input from stdin & messages
+from gst. For example, `pthreads(7)` or `select(2)`.
 
 Though a different loop on a different thread may each for-loop more simple,
 a `select` call should do just fine here.
@@ -262,10 +261,10 @@ Now our main-loop looks like this:
 Note, we're echoing the gstreamer messages as well as stdin:
 
 ```c
-		if ((n = read(0, &buf[0], sizeof(buf)-1)) <= 0) {
-			break;
-		}
-		fprintf(stderr, "read: %.*s\n", n, &buf[0]);
+if ((n = read(0, &buf[0], sizeof(buf)-1)) <= 0) {
+	break;
+}
+fprintf(stderr, "read: %.*s\n", n, &buf[0]);
 ```
 
 ![](images/select.jpg)
@@ -274,16 +273,20 @@ Note, we're echoing the gstreamer messages as well as stdin:
 Now all we need to do is parse & set:
 
 ```c
-		char key[32];
-		...
-		if (FD_ISSET(0, &fds)) {
-			if ((n = read(0, &buf[0], sizeof(buf)-1)) <= 0) {
-				break;
-			}
+if ((n = read(0, &buf[0], sizeof(buf)-1)) <= 0) {
+	break;
+}
 
-			buf[n] = '\0';
-			sscanf(buf, "%32s %d\n", &key[0], &n);
-			g_object_set(G_OBJECT(overlay), &key[0], n, NULL);
-		}
+buf[n] = '\0';
+
+char key[32];
+sscanf(buf, "%32s %d\n", &key[0], &n);
+g_object_set(G_OBJECT(overlay), &key[0], n, NULL);
 ```
 
+![](images/x-offset.gif)
+
+
+Mission accomplished.
+
+![](images/mission-accomplished.jpg)
