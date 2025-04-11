@@ -180,7 +180,7 @@ g_object_set(G_OBJECT(overlay), "offset-x", 50, NULL);
 
 or like this:
 
-```
+```c
 g_object_set(G_OBJECT(overlay), "offset-x", 50, "offset-y", 100, NULL);
 ```
 
@@ -269,3 +269,21 @@ Note, we're echoing the gstreamer messages as well as stdin:
 ```
 
 ![](images/select.jpg)
+
+
+Now all we need to do is parse & set:
+
+```c
+		char key[32];
+		...
+		if (FD_ISSET(0, &fds)) {
+			if ((n = read(0, &buf[0], sizeof(buf)-1)) <= 0) {
+				break;
+			}
+
+			buf[n] = '\0';
+			sscanf(buf, "%32s %d\n", &key[0], &n);
+			g_object_set(G_OBJECT(overlay), &key[0], n, NULL);
+		}
+```
+
